@@ -1,0 +1,291 @@
+---
+title: "Homework 2: Time Series"
+author: "Mateus Auza Cruz (28732200)"
+date: today
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    documentclass: scrartcl
+    papersize: letter
+    colorlinks: true
+    fig-cap-location: bottom
+    fig-pos: H
+    geometry:
+      - margin=1in
+    fontsize: 11pt
+
+execute:
+  echo: true
+  warning: false
+  message: false
+
+editor:
+  markdown:
+    wrap: 80
+
+df-print: kable
+---
+
+## Data Loading
+
+```{r}
+serie4= read.table("serie4.txt", header=T); X4= ts(serie4)
+```
+
+# Exercice 1 - Visual analysis and order estimation
+```{r}
+#| fig-width: 7
+#| fig-height: 6
+#| results: hold
+par(mfrow=c(3,1)); plot(X4); acf(X4); pacf(X4)
+```
+
+From the ACF and PACF plots, neither function exhibits a clear cutoff; both gradually decay. This behavior is characteristic of an ARMA(p,q) process rather than a pure AR(p) or MA(q) process. Therefore, we consider ARMA models for several combinations of *p* and *q*.
+
+```{r}
+pmax <- 5
+qmax <- 5
+
+AIC_mat <- matrix(NA, pmax, qmax)
+BIC_mat <- matrix(NA, pmax, qmax)
+
+for (p in 1:pmax) {
+  for (q in 1:qmax) {
+    
+    fit <- arima(X4, order=c(p,0,q))
+    
+    AIC_mat[p,q] <- AIC(fit)
+    BIC_mat[p,q] <- BIC(fit)
+  }
+}
+
+knitr::kable(AIC_mat, caption="AIC values for ARMA(p,q)")
+knitr::kable(BIC_mat, caption="BIC values for ARMA(p,q)")
+```
+
+
+```{r}
+#| results: hold
+which(AIC_mat == min(AIC_mat), arr.ind=TRUE)
+which(BIC_mat == min(BIC_mat), arr.ind=TRUE)
+which(AIC_mat==sort(AIC_mat)[2], arr.ind=TRUE)
+which(BIC_mat==sort(BIC_mat)[2], arr.ind=TRUE)
+```
+
+The minimum AIC and BIC values correspond to the models ARMA(1,1) and ARMA(2,1).
+
+# Exercice 2 - Maximum Likelihood parameter estimation
+
+```{r}
+fit11 <- arima(X4, order=c(1,0,1), method="ML")
+fit21 <- arima(X4, order=c(2,0,1), method="ML")
+
+fit11
+fit21
+```
+
+# Exercice 3 - Model Equation
+
+The equations of the two selected models are:
+$$
+ARMA(1,1): X_t= 0.6334 + 0.8816X_{t-1} + 0.8780\epsilon_{t-1} + \epsilon_t
+$$
+$$
+ARMA(2,1) : X_t= 0.6277+ 0.8592X_{t-1} + 0.0246X_{t-2} + 0.8835\epsilon_{t-1} + \epsilon_t
+$$
+
+# Exercice 4 - Residual diagnostics
+
+To determine whether the models are correctly specified, we analyze the residuals.
+If the model adequately captures the dependence structure of the series, the
+residuals should behave like **white noise**.
+
+We therefore examine:
+- the residual time series
+- the ACF and PACF of the residuals
+- Ljung–Box tests for remaining autocorrelation.
+
+## Model 1 diagnostics
+
+```{r}
+#| resuts: hold
+#| fig-width: 7
+#| fig-height: 6
+
+par(mfrow=c(3,1))
+resid11=residuals(fit11)
+plot(resid11)
+acf(resid11)
+pacf(resid11)
+```
+
+The residuals fluctuate randomly around zero and no clear pattern is visible.
+The ACF and PACF show no significant spikes outside the confidence bands,
+indicating the absence of remaining autocorrelation.
+
+## Ljung- Box Test
+
+```{r}
+pval1 <- numeric(19)
+
+for(i in 2:20){
+  pval1[i-1] <- Box.test(resid11, lag=i,
+                         type="Ljung",
+                         fitdf=2)$p.value
+}
+
+plot(2:20, pval1,
+     main="Ljung-Box p-values for ARMA(1,1)",
+     xlab="Lag", ylab="p-value")
+
+abline(h=0.05)
+```
+
+Most p-values are above the significance level (0.05), suggesting that
+the residuals do not exhibit significant autocorrelation.
+Therefore the ARMA(1,1) model appears to adequately capture the correlation
+structure of the data.
+
+## Model 2
+
+```{r}
+#| resuts: hold
+#| fig-width: 7
+#| fig-height: 6
+par(mfrow=c(3,1))
+resid21 <- residuals(fit21)
+plot(resid21, main="Residuals of ARMA(2,1)")
+acf(resid21, main="ACF of residuals")
+pacf(resid21, main="PACF of residuals")
+```
+
+```{r}
+pval2 <- numeric(19)
+
+for(i in 2:20){
+  pval2[i-1] <- Box.test(resid21, lag=i,
+                         type="Ljung",
+                         fitdf=3)$p.value
+}
+
+plot(2:20, pval2,
+     main="Ljung-Box p-values for ARMA(2,1)",
+     xlab="Lag", ylab="p-value")
+
+abline(h=0.05)
+```
+
+Similarly, the residual diagnostics indicate that the ARMA(2,1) model
+does not leave significant autocorrelation in the residuals. Thus this
+model also appears to be correctly specified.
+
+Between the two models, the **ARMA(1,1)** model is more parsimonious because
+it contains fewer parameters than the *ARMA(2,1)* model.
+
+Since both models adequately capture the correlation structure of the data, the ARMA(1,1) model is preferred.
+
+
+# Exercice 5 - One-step-ahead prediction
+
+To compare the predictive performance of the two models, we compute
+one-step-ahead forecasts using a rolling window approach.
+
+```{r}
+OneAhead <- function(x, order, K = 0.9){
+
+  n <- length(x)
+  ntrain <- floor(K*n)
+
+  preds <- numeric(n)
+
+  for(i in ntrain:(n-1)){
+    fit <- arima(x[1:i], order=order)
+    preds[i+1] <- predict(fit, n.ahead=1)$pred
+  }
+
+  idx <- (ntrain+1):n
+  pred <- preds[idx]
+  errors <- x[idx] - pred
+
+  list(pred=pred,
+       errors=errors,
+       mspe=mean(errors^2))
+}
+```
+
+```{r}
+#| results: hold
+OAP11 <- OneAhead(X4, order=c(1,0,1))
+OAP21 <- OneAhead(X4, order=c(2,0,1))
+
+OAP11$mspe
+OAP21$mspe
+```
+
+Thsi confirms our hypothesis made earlier. These two models are almost identical in terms of predicting the data.
+
+
+
+For firther analysis, we plot the *actual* vs the *predicted*.
+
+```{r}
+n <- length(X4)
+ntrain <- floor(0.9*n)
+
+actual <- X4[(ntrain+1):n]
+
+plot(actual,
+     type="l",
+     col="black",
+     main="One-step-ahead predictions",
+     ylab="Series value",
+     xlab="Time")
+
+lines(OAP11$pred, col="red")
+lines(OAP21$pred, col="blue")
+
+legend("topleft",
+       legend=c("Actual","ARMA(1,1)","ARMA(2,1)"),
+       col=c("black","red","blue"),
+       lty=1)
+```
+
+Again, we observe the same thing, the one step ahead predictions of the ARMA(1,1) and the ARMA(2,1) are intertwined. They make the same predictions
+
+
+# Exercice 6 
+Both models appear to adequately capture the correlation structure of the data.
+However, the ARMA(1,1) model is more parsimonious. Therefore, the **ARMA(1,1)** model is selected as the most appropriate model
+for the series.
+
+# Exercice 7 - Forecasting
+
+
+```{r}
+forecast <- predict(fit11, n.ahead = 10)
+
+# last 50 observations
+last50 <- tail(X4, 50)
+
+plot(last50,
+     xlim = c(time(last50)[1], time(last50)[50] + 10),
+     ylim = range(c(last50, forecast$pred)),
+     main = "10-step forecast with ARMA(1,1)", type="l",
+     ylab = "Series",
+     col = "black")
+
+lines(seq(time(last50)[50] + deltat(X4),
+          by = deltat(X4),
+          length.out = 10),
+      forecast$pred,
+      col = "red")
+
+legend("topleft",
+       legend = c("Observed", "Forecast"),
+       col = c("black","red"),
+       lty = 1)
+
+```
+
+The figure shows the last 50 observations of the series together with the 10-step-ahead forecasts obtained from the selected ARMA(1,1) model.

@@ -1,0 +1,110 @@
+---
+title: "Homework 1 - Time series"
+author: "Mateus Auza Cruz     Noma: 28732200"
+format: 
+  pdf: 
+    fontsize: 10pt
+    geometry: margin=1.5cm
+editor: visual
+#toc: True
+execute:
+  #echo: false
+  error: true
+  warning: false
+  message: false
+  
+code-fold: true
+knitr:
+  opts_chunk: 
+    tidy: styler
+    message: false
+    
+embed-resources: true
+df-print: kable
+---
+
+We chose the ARMA(2,1) model for this homework, defined as follows:
+$$ X_t= 0.9X_{t-1} -0.25X_{t-2}+\epsilon_{t}+ 0.5\epsilon_{t-1}$$
+
+The corresponding parameters are $\phi = (0.9, -0.25)$ and $\theta = 0.5$. We then simulate the process in R as follows:
+```{r}
+n= c(100,1000)
+stdev=1
+par(mfrow=c(2,3))
+set.seed(2)
+for (i in c(1,2)){
+  model= arima.sim(model= list(ar= c(0.9, -0.25), ma=c(0.5)), sd= stdev, n=n[i])
+  plot(model, main= paste("Times series, n=", n[i]))
+  acf(model, lag.max=50, main= paste("ACF, n=", n[i]))
+  pacf(model, lag.max=50, main= paste("PACF, n=", n[i]))
+}
+```
+# Interpretation
+For n = 100, the time series and the estimated ACF and PACF are noisy due to the small sample size. This variability makes it more difficult to clearly identify the underlying ARMA(2,1) structure.
+
+When the sample size increases to n = 1000, the estimates become much smoother and more stable. Both the ACF and PACF show gradual decay toward zero, which is consistent with the theoretical behavior of an ARMA process. The larger sample size reduces sampling variability and improves the reliability of the time series diagnostics.
+
+
+To further validate these interpretations, we repeat the simulation three times for each sample size. To ensure comparability between n = 100 and n = 1000, the same seed is used within each iteration, and comparisons are made accordingly.
+```{r}
+n= c(100,1000)
+stdev=sqrt(10)
+for (j in 1:3){
+  par(mfrow = c(2,3), mar = c(3,3,2,1))
+  set.seed(j)
+  for (i in c(1,2)){
+    
+    model= arima.sim(model= list(ar= c(0.9, -0.25), ma=c(0.5)), sd= stdev, n=n[i])
+  
+    plot(model, main = paste("n=", n[i], "iteration=", j))
+    acf(model, lag.max=50, main= "ACF")
+    pacf(model, lag.max=50, main="PACF")
+  }
+}
+```
+
+## Interpretation:
+
+Across the three repetitions, the same conclusions are observed. The results for n = 100 remain noisy, while the results for n = 1000 are consistently smoother and easier to interpret. This confirms that increasing the sample size improves the consistency and reliability of the autocorrelation estimates.
+
+
+Repeating the simulations with a variance 10 times higher, we obtain the following results:
+```{r}
+
+# the same thing but with the variance 10 times higher 
+
+n= c(100,1000)
+stdev=50
+for (j in 1:3){
+  par(mfrow = c(2,3), mar = c(3,3,2,1))
+  set.seed(j)
+  for (i in c(1,2)){
+    set.seed(j)
+    
+    model= arima.sim(model= list(ar= c(0.9, -0.25), ma=c(0.5)), sd= stdev, n=n[i])
+
+    
+    plot(model, main = paste("n=", n[i], "iteration=", j))
+    acf(model, lag.max=50, main= paste("n=", n[i], "iteration=", j))
+    pacf(model, lag.max=50, main=paste("n=", n[i], "iteration=", j))
+  }
+}
+
+```
+
+# Interpretation
+
+When increasing the variance of the process, the overall amplitude of the time series increases, but the ACF and PACF remain unchanged.
+
+This occurs because autocorrelations are scale-invariant and do not depend on the variance of the process. 
+
+Therefore, changing the variance does not affect the identification of the ARMA structure.
+
+
+
+
+
+
+
+
+
