@@ -1,5 +1,5 @@
 ---
-title: "Homework 2: Time Series"
+title: "Arma-modeling"
 author: "Mateus Auza Cruz (28732200)"
 date: today
 
