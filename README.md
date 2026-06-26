@@ -1,12 +1,9 @@
-```markdown
+
 # Time Series Analysis in R
 
 This repository contains projects demonstrating classical time series analysis and forecasting using **R** and **Quarto**. The analyses cover the complete modeling workflow, including exploratory data analysis, model identification, parameter estimation, diagnostic checking, model selection, and forecasting.
 
 ## Repository Structure
-
-```
-
 .
 ├── arma-modeling/
 │   ├── arma-modeling.qmd
